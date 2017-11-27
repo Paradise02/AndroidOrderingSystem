@@ -86,6 +86,26 @@ public class MainActivityVertical extends Activity implements ServiceConnection{
                     Toast.makeText(MainActivityVertical.this, "Failed to load data, please" +
                             " refresh pages", Toast.LENGTH_LONG).show();
                     break;
+                case ClientOrderService.QUERY:
+                    Log.i(TAG, "query done");
+                    String result = bundle.getString(ClientOrderService.RESULT);
+                    if (result == ClientOrderService.NOTAVA){
+                        Toast.makeText(MainActivityVertical.this, "Sorry, currently we can not get any of your order item prepared", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(MainActivityVertical.this, "Order checked, redirect to confirmation", Toast.LENGTH_LONG).show();
+                        MainActivityVertical.this.startActivity(new Intent(MainActivityVertical.this, ConfirmActivity.class));
+                    }
+                    break;
+                case ClientOrderService.TRACK:
+                    Log.i(TAG, "track done");
+                    Toast.makeText(MainActivityVertical.this, "Your order is being packed.", Toast.LENGTH_LONG).show();
+                    //clientOrderService.currentState = ClientOrderService.OrderState.Watching;
+                    clientOrderService.beginNewOrder();
+                    txtTotal.setVisibility(View.GONE);
+                    //MainActivityVertical.this.startActivity(new Intent(MainActivityVertical.this, MainActivityVertical.class));
+                    MainActivityVertical.this.startActivity(new Intent(MainActivityVertical.this, FinalResult.class));
+
+                    break;
                 default:
                     break;
             }
@@ -122,7 +142,9 @@ public class MainActivityVertical extends Activity implements ServiceConnection{
                             clientOrderService.currentState == ClientOrderService.OrderState.Ordering)
                         startActivity(new Intent(MainActivityVertical.this, OrderActivity.class));
                     else if (clientOrderService.currentState == ClientOrderService.OrderState.Confirming) {
-
+                        startActivity(new Intent(MainActivityVertical.this, ConfirmActivity.class));
+                    } else if (clientOrderService.currentState == ClientOrderService.OrderState.Preparing) {
+                        Toast.makeText(getBaseContext(), "We are preparing your order now, thank you for patience", Toast.LENGTH_LONG).show();
                     }
                 }
             }

@@ -47,7 +47,24 @@ public class OrderActivity extends Activity implements ServiceConnection{
     private BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-
+            Bundle bundle = intent.getExtras();
+            String type = bundle.getString(ClientOrderService.RESULT_TYPE);
+            switch (type) {
+                case ClientOrderService.QUERY:
+                    Log.i(TAG, "query done");
+                    String result = bundle.getString(ClientOrderService.RESULT);
+                    if (result == ClientOrderService.NOTAVA){
+                        Toast.makeText(OrderActivity.this, "Sorry, currently we can not get any of your order item prepared", Toast.LENGTH_LONG).show();
+                    } else {
+                        Toast.makeText(OrderActivity.this, "Order checked, redirect to confirmation", Toast.LENGTH_LONG).show();
+                        Intent confirmIntent = new Intent(OrderActivity.this, ConfirmActivity.class);
+                        confirmIntent.putExtra(ClientOrderService.RESULT, result);
+                        OrderActivity.this.startActivity(confirmIntent);
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
     };
 
@@ -80,7 +97,7 @@ public class OrderActivity extends Activity implements ServiceConnection{
             public void onClick(View v) {
                 clientOrderService.orderItemRequest();
                 clientOrderService.currentState = ClientOrderService.OrderState.Ordering;
-                OrderActivity.this.startActivity(new Intent(OrderActivity.this, ConfirmActivity.class));
+                //OrderActivity.this.startActivity(new Intent(OrderActivity.this, ConfirmActivity.class));
             }
         });
     }

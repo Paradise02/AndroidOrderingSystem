@@ -23,19 +23,28 @@ import java.io.InputStream;
 import java.lang.reflect.Type;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.sql.Time;
 import java.util.ArrayList;
+import java.util.InputMismatchException;
 import java.util.List;
+import java.util.Scanner;
+import java.util.concurrent.TimeUnit;
 
 
 public class ClientOrderService extends Service {
     private Binder orderBinder = new OrderBinder();
-    private static final String ADDR = "192.168.1.13";
+    private static final String ADDR = "10.110.147.69";
     private static final String PORT = "4040";
     public static final String NOTIFICATION = "com.example.orangeparadise.clientorderdemo.NOTIFICATION";
     public static final String RESULT_TYPE = "type";
     public static final String RESULT = "result";
     public static final String AVAILABLE = "available";
     public static final String FAILED = "failed";
+    public static final String QUERY = "query";
+    public static final String TRACK = "track";
+    public static final String FULL = "FULL";
+    public static final String PARTIAL = "PARTIAL";
+    public static final String NOTAVA = "NOTAVA";
 
     private static final String TAG = "ClientOrderService";
 
@@ -84,7 +93,7 @@ public class ClientOrderService extends Service {
 
     private void broadcast(String type, String result){
         // TODO: Broadcast information extracted from socket
-
+        Log.d(TAG, "BROADCAST");
         Intent intent = new Intent(NOTIFICATION);
         intent.putExtra(RESULT_TYPE, type);
         intent.putExtra(RESULT, result);
@@ -191,6 +200,15 @@ public class ClientOrderService extends Service {
                     e.printStackTrace();
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    if (socket != null) {
+                        try {
+                            socket.close();
+                        } catch (IOException e) {
+                            socket = null;
+                            e.printStackTrace();
+                        }
+                    }
                 }
                 for (int i = 0; i < items.size(); ++i){
                     orderNums.add(0);
@@ -231,10 +249,239 @@ public class ClientOrderService extends Service {
                     e.printStackTrace();
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    if (socket != null) {
+                        try {
+                            socket.close();
+                        } catch (IOException e) {
+                            socket = null;
+                            e.printStackTrace();
+                        }
+                    }
                 }
             }
         }).start();
 
+        queryOrderRequest();
+    }
+
+    private void queryOrderRequest(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(currentState == OrderState.Ordering){
+                    try {
+                        Log.i(TAG, "TRY TO CONNECT..." + ADDR);
+                        socket = new Socket(ADDR, Integer.parseInt(PORT));
+
+                        Log.i(TAG, "SOCKET accepted, client port:" + socket.getLocalPort());
+                        DataOutputStream outputStream = new
+                                DataOutputStream(socket.getOutputStream());
+
+                        outputStream.writeUTF("query");
+                        Log.i(TAG, "Trying to query order status...");
+
+                        DataInputStream inputStream = new
+                                DataInputStream(socket.getInputStream());
+                        Log.i(TAG, "GET INPUTSTREAM...");
+
+                        String response = inputStream.readUTF();
+                        Log.i(TAG, response);
+
+                        if (response.equals("Partial\n")){
+                            outputStream.writeUTF("OK\n");
+                            String resp = inputStream.readUTF();
+                            Log.d(TAG, resp);
+                            Scanner scanner = new Scanner(resp);
+                            scanner.useDelimiter(",");
+                            //Log.i(TAG, scanner.delimiter().toString());
+                            for (int i = 0; i < orderNums.size(); i ++){
+                                try {
+                                    int num = scanner.nextInt();
+                                    orderNums.set(i, num);
+                                } catch (InputMismatchException e){
+                                    orderNums.set(i, 0);
+                                }
+                            }
+                        }
+
+                        if (!response.equals("Preparing\n")){
+                            // TODO send confirming broadcast
+                            currentState = OrderState.Confirming;
+                            switch (response){
+                                case "Fully\n":
+                                    broadcast(QUERY, FULL);
+                                    break;
+                                case "Partial\n":
+                                    broadcast(QUERY, PARTIAL);
+                                    break;
+                                case "NotAvailable\n":
+                                    broadcast(QUERY, NOTAVA);
+                                    break;
+                            }
+                        }
+
+                        TimeUnit.MILLISECONDS.sleep(1000);
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } finally {
+                        if (socket != null) {
+                            try {
+                                socket.close();
+                            } catch (IOException e) {
+                                socket = null;
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+
+                }
+            }
+        }).start();
+    }
+
+    public void confirmOrderRequest(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Log.i(TAG, "TRY TO CONNECT..." + ADDR);
+                    socket = new Socket(ADDR, Integer.parseInt(PORT));
+
+                    Log.i(TAG, "SOCKET accepted, client port:" + socket.getLocalPort());
+                    DataOutputStream outputStream = new
+                            DataOutputStream(socket.getOutputStream());
+
+                    outputStream.writeUTF("confirm");
+                    Log.i(TAG, "confirming...");
+
+                    currentState = OrderState.Preparing;
+                    trackOrderRequest();
+
+                    /*for (int i = 0; i < orderNums.size(); ++i){
+                        orderNums.set(i, 0);
+                    }*/
+
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    if (socket != null) {
+                        try {
+                            socket.close();
+                        } catch (IOException e) {
+                            socket = null;
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }).start();
+        Log.e(TAG, "Begin tracking");
+
+    }
+
+    public void cancelOrderRequest(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Log.i(TAG, "TRY TO CONNECT..." + ADDR);
+                    socket = new Socket(ADDR, Integer.parseInt(PORT));
+
+                    Log.i(TAG, "SOCKET accepted, client port:" + socket.getLocalPort());
+                    DataOutputStream outputStream = new
+                            DataOutputStream(socket.getOutputStream());
+
+                    outputStream.writeUTF("cancel");
+                    Log.i(TAG, "cancelling...");
+
+                    currentState = OrderState.Watching;
+
+                    for (int i = 0; i < orderNums.size(); ++i){
+                        orderNums.set(i, 0);
+                    }
+
+                } catch (UnknownHostException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                } finally {
+                    if (socket != null) {
+                        try {
+                            socket.close();
+                        } catch (IOException e) {
+                            socket = null;
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }).start();
+    }
+
+    private void trackOrderRequest(){
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while(currentState == OrderState.Preparing){
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(1000);
+                        Log.i(TAG, "TRY TO CONNECT..." + ADDR);
+                        socket = new Socket(ADDR, Integer.parseInt(PORT));
+
+                        Log.i(TAG, "SOCKET accepted, client port:" + socket.getLocalPort());
+                        DataOutputStream outputStream = new
+                                DataOutputStream(socket.getOutputStream());
+
+                        outputStream.writeUTF("track");
+                        Log.e(TAG, "Trying to track cooking state...");
+
+                        DataInputStream inputStream = new
+                                DataInputStream(socket.getInputStream());
+                        Log.i(TAG, "GET INPUTSTREAM...");
+
+                        String response = inputStream.readUTF();
+                        Log.e(TAG, response);
+
+                        if (!response.equals("Cooking\n")) {
+                            // TODO send confirming broadcast
+                            currentState = OrderState.Done;
+                            Log.e(TAG, "Order packing now!");
+                            broadcast(TRACK);
+                        }
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } finally {
+                        if (socket != null) {
+                            try {
+                                socket.close();
+                            } catch (IOException e) {
+                                socket = null;
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+
+                }
+            }
+        }).start();
+    }
+
+    public void beginNewOrder(){
+        currentState = OrderState.Watching;
+        for (int i = 0; i < orderNums.size(); ++i){
+            orderNums.set(i, 0);
+        }
     }
 
     /*private class ClientListeningThread extends Thread{

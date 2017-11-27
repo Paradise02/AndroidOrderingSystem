@@ -27,7 +27,7 @@ public class ConfirmActivity extends Activity implements ServiceConnection{
 
     private ClientOrderService clientOrderService;
     private static final String TAG = "ConfirmActivity";
-    private TextView txtReceipt;
+    private TextView txtReceipt, txtReceiptName, txtReceiptQty, txtReceiptTotal;
     private FloatingActionButton FABitem;
     private Button btnConfirm;
     private Button btnCancel;
@@ -40,6 +40,9 @@ public class ConfirmActivity extends Activity implements ServiceConnection{
         super.onCreate(savedInstanceState);
         orders.add(null);
         txtReceipt = (TextView) findViewById(R.id.txt_confirm_receipt);
+        txtReceiptName = (TextView) findViewById(R.id.txt_confirm_receipt_name);
+        txtReceiptQty = (TextView) findViewById(R.id.txt_confirm_receipt_qty);
+        txtReceiptTotal = (TextView) findViewById(R.id.txt_confirm_receipt_total);
         FABitem = (FloatingActionButton) findViewById(R.id.FABItem);
         btnCancel = (Button) findViewById(R.id.ord_cancel_btn);
         btnConfirm = (Button) findViewById(R.id.ord_confirm_btn);
@@ -55,9 +58,24 @@ public class ConfirmActivity extends Activity implements ServiceConnection{
         btnConfirm.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                //Toast.makeText(getBaseContext(), getReceipt(), Toast.LENGTH_LONG).show();
+                clientOrderService.confirmOrderRequest();
+                ConfirmActivity.this.startActivity(new Intent(ConfirmActivity.this, MainActivityVertical.class));
             }
         });
+
+        btnCancel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                clientOrderService.cancelOrderRequest();
+                ConfirmActivity.this.startActivity(new Intent(ConfirmActivity.this, MainActivityVertical.class));
+            }
+        });
+
+        Bundle bundle = getIntent().getExtras();
+        String result = bundle.getString(ClientOrderService.RESULT);
+        if (result.equals(ClientOrderService.PARTIAL)){
+            Toast.makeText(getBaseContext(), "Sorry your order can only be partially prepared", Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override
@@ -74,8 +92,7 @@ public class ConfirmActivity extends Activity implements ServiceConnection{
                 ));
             }
         }
-        Log.d(TAG, getReceipt());
-        txtReceipt.setText(getReceipt());
+        getReceipt();
     }
 
     @Override
@@ -96,24 +113,43 @@ public class ConfirmActivity extends Activity implements ServiceConnection{
         super.onPause();
     }
 
-    private String getReceipt(){
+    @Override
+    public void onBackPressed() {
+        startActivity(new Intent(getBaseContext(), MainActivityVertical.class));
+    }
+
+    private void getReceipt(){
         String receipt = "receipt:\n";
+        String receiptName = "Item\n";
+        String receiptQty = "Qty\n";
+        String receiptPrice = "Price\n";
 
         receipt += String.format("%-20s %-15s %-10s\n", "Item", "Qty", "Price");
 
         double total = 0.0;
         for (int i = 0; i < orders.size(); ++i){
-            String receiptLine = String.format("%-20s %-15s %-10.2f\n",
+            /*String receiptLine = String.format("%-20s %-15s %-10.2f\n",
                     orders.get(i).item.getItemName(),
                     orders.get(i).num,
                     orders.get(i).num * orders.get(i).item.getItemPrice());
-            receipt += receiptLine;
+            receipt += receiptLine;*/
             total += orders.get(i).num * orders.get(i).item.getItemPrice();
+            receiptName += orders.get(i).item.getItemName();
+            receiptName += "\n";
+            receiptQty += String.valueOf(orders.get(i).num);
+            receiptQty += "\n";
+            receiptPrice += String.format("$%.2f\n", orders.get(i).num * orders.get(i).item.getItemPrice());
         }
 
-        receipt += String.format("%-20s %-15s %-10.2f\n", "Tax", "", total * 0.06);
-        receipt += String.format("%-20s %-15s %-10.2f\n", "Total", "", total * 1.06);
+        receiptName += "Tax\n";
+        receiptQty += "\n";
+        receiptPrice += String.format("$%.2f\n", total*0.06);
+        receiptName += "Total\n";
+        receiptQty += "\n";
+        receiptPrice += String.format("$%.2f\n", total*1.06);
 
-        return receipt;
+        txtReceiptName.setText(receiptName);
+        txtReceiptQty.setText(receiptQty);
+        txtReceiptTotal.setText(receiptPrice);
     }
 }

@@ -19,6 +19,7 @@
             </intent-filter></activity>
         <activity android:name=".OrderActivity"></activity>
         <activity android:name=".ConfirmActivity"></activity>
+        <activity android:name=".FinalResult"></activity>
 
         <service
             android:name=".ClientOrderService"
